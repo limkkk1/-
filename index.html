@@ -5,59 +5,189 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PearlHash 快捷入口</title>
   <style>
-    :root {
-      color-scheme: dark;
+    body {
+      margin: 0;
+      min-height: 100vh;
+      box-sizing: border-box;
+      padding: 24px;
       font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
       background: #111;
       color: #f5f5f5;
     }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #111;
-    }
-
     main {
-      width: min(420px, calc(100vw - 40px));
+      width: min(920px, 100%);
+      margin: 0 auto;
       display: grid;
-      gap: 16px;
+      gap: 14px;
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-      font-weight: 700;
-      text-align: center;
+      margin: 0 0 4px;
+      font-size: 26px;
     }
 
-    a {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 64px;
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    a,
+    button {
+      min-height: 52px;
       border: 1px solid #444;
       border-radius: 8px;
       background: #1d1d1d;
       color: #fff;
-      text-decoration: none;
-      font-size: 18px;
+      font: inherit;
+      font-size: 17px;
       font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    a:hover {
+    a:hover,
+    button:hover {
       background: #2a2a2a;
       border-color: #777;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 620px;
+      box-sizing: border-box;
+      padding: 16px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #050505;
+      color: #f5f5f5;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      resize: vertical;
+      white-space: pre;
+    }
+
+    @media (max-width: 640px) {
+      .actions {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <main>
     <h1>PearlHash 快捷入口</h1>
-    <a href="https://inoui.cc/db" target="_blank" rel="noopener noreferrer">打开 inoui.cc/db</a>
-    <a href="pearlhash-windows.cmd" download>下载 PearlHash CMD</a>
+    <div class="actions">
+      <a href="https://inoui.cc/db" target="_blank" rel="noopener noreferrer">打开 inoui.cc/db</a>
+      <button type="button" id="copy">复制 CMD 内容</button>
+    </div>
+    <textarea id="cmd" spellcheck="false">@echo off
+setlocal EnableExtensions
+
+set "WILDRIG_VERSION=0.48.0"
+set "WILDRIG_ZIP=wildrig-multi-windows-%WILDRIG_VERSION%.zip"
+set "WILDRIG_URL=https://github.com/andru-kun/wildrig-multi/releases/download/%WILDRIG_VERSION%/%WILDRIG_ZIP%"
+set "MINER_DIR=%~dp0wildrig-multi-windows-%WILDRIG_VERSION%"
+set "MINER_EXE=%MINER_DIR%\wildrig.exe"
+
+echo PearlHash Windows launcher
+echo.
+
+if not exist "%MINER_EXE%" (
+    echo Downloading WildRig Multi %WILDRIG_VERSION% for Windows...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$ErrorActionPreference='Stop';" ^
+        "$zip=Join-Path $env:TEMP '%WILDRIG_ZIP%';" ^
+        "Invoke-WebRequest -Uri '%WILDRIG_URL%' -OutFile $zip;" ^
+        "if(Test-Path '%MINER_DIR%'){Remove-Item -LiteralPath '%MINER_DIR%' -Recurse -Force};" ^
+        "Expand-Archive -LiteralPath $zip -DestinationPath '%MINER_DIR%' -Force"
+    if errorlevel 1 (
+        echo.
+        echo Failed to download or extract WildRig.
+        pause
+        exit /b 1
+    )
+)
+
+set "WALLET=prl1puv4zj79afgkqsz09d2nxdmvpkunhc7390w6uu57gscy6rr82y6cqp929te"
+if "%WALLET%"=="" (
+    echo Wallet address is required.
+    pause
+    exit /b 1
+)
+
+set "WORKER=%COMPUTERNAME%"
+set /p "WORKER=Worker name [%WORKER%]: "
+if "%WORKER%"=="" set "WORKER=%COMPUTERNAME%"
+
+echo.
+echo Select PearlHash pool region:
+echo   1. EU / US  84.32.220.219:9000
+echo   2. Asia     129.226.55.135:9000
+set "REGION=1"
+set /p "REGION=Region [1]: "
+
+if "%REGION%"=="2" (
+    set "POOL=129.226.55.135:9000"
+) else (
+    set "POOL=84.32.220.219:9000"
+)
+
+echo.
+echo Select tuning profile:
+echo   1. Stable      auto intensity, safest
+echo   2. Performance intensity 30
+echo   3. Aggressive  intensity 31
+echo   4. Custom      type your own WildRig options
+set "PROFILE=2"
+set /p "PROFILE=Profile [2]: "
+
+set "TUNE_ARGS=--gpu-intensity 30"
+if "%PROFILE%"=="1" set "TUNE_ARGS="
+if "%PROFILE%"=="3" set "TUNE_ARGS=--gpu-intensity 31"
+if "%PROFILE%"=="4" set /p "TUNE_ARGS=Custom options: "
+
+echo.
+echo Starting PearlHash mining:
+echo   Pool:   %POOL%
+echo   Wallet: %WALLET%
+echo   Worker: %WORKER%
+echo   Tuning: %TUNE_ARGS%
+echo.
+echo Press Ctrl+C to stop.
+echo.
+
+:loop
+"%MINER_EXE%" --algo pearlhash --url %POOL% --user %WALLET% --worker %WORKER% %TUNE_ARGS%
+echo.
+echo Miner stopped. Restarting in 5 seconds...
+timeout /t 5 >nul
+goto loop</textarea>
   </main>
+
+  <script>
+    const button = document.getElementById("copy");
+    const textarea = document.getElementById("cmd");
+
+    button.addEventListener("click", async () => {
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        button.textContent = "已复制";
+      } catch {
+        document.execCommand("copy");
+        button.textContent = "已复制";
+      }
+      setTimeout(() => {
+        button.textContent = "复制 CMD 内容";
+      }, 1600);
+    });
+  </script>
 </body>
 </html>
