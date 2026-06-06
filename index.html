@@ -29,7 +29,7 @@
 
     .actions {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
     }
 
@@ -77,6 +77,12 @@
         grid-template-columns: 1fr;
       }
     }
+
+    @media (min-width: 641px) and (max-width: 900px) {
+      .actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   </style>
 </head>
 <body>
@@ -84,7 +90,9 @@
     <h1>PearlHash 快捷入口</h1>
     <div class="actions">
       <a href="https://inoui.cc/db" target="_blank" rel="noopener noreferrer">打开 inoui.cc/db</a>
-      <button type="button" id="copy">复制 CMD 内容</button>
+      <button type="button" class="copy" data-target="cmd" data-label="复制 P池 CMD 程序">复制 P池 CMD 程序</button>
+      <a href="https://pearl.luckypool.io/lpminer/lpminer-0.1.10.zip" target="_blank" rel="noopener noreferrer">下载 Luck lpminer</a>
+      <button type="button" class="copy" data-target="luck-cmd" data-label="复制 Luck 池子 CMD">复制 Luck 池子 CMD</button>
     </div>
     <textarea id="cmd" spellcheck="false">@echo off
 setlocal EnableExtensions
@@ -126,31 +134,45 @@ set /p "WORKER=Worker name [%WORKER%]: "
 if "%WORKER%"=="" set "WORKER=%COMPUTERNAME%"
 
 echo.
-echo Select PearlHash pool region:
-echo   1. EU / US  84.32.220.219:9000
-echo   2. Asia     129.226.55.135:9000
+echo Select LuckyPool Pearl server:
+echo   1. Canada 1     pearl-ca1.luckypool.io:3360
+echo   2. Canada 2     pearl-ca2.luckypool.io:3360
+echo   3. Europe 1     pearl-eu1.luckypool.io:3360
+echo   4. Europe 2     pearl-eu2.luckypool.io:3360
+echo   5. Singapore 1  pearl-sg1.luckypool.io:3360
+echo   6. Singapore 2  pearl-sg2.luckypool.io:3360
 set "REGION=1"
-set /p "REGION=Region [1]: "
+set /p "REGION=Server [1]: "
 
-if "%REGION%"=="2" (
-    set "POOL=129.226.55.135:9000"
-) else (
-    set "POOL=84.32.220.219:9000"
-)
+set "HOST=pearl-ca1.luckypool.io"
+if "%REGION%"=="2" set "HOST=pearl-ca2.luckypool.io"
+if "%REGION%"=="3" set "HOST=pearl-eu1.luckypool.io"
+if "%REGION%"=="4" set "HOST=pearl-eu2.luckypool.io"
+if "%REGION%"=="5" set "HOST=pearl-sg1.luckypool.io"
+if "%REGION%"=="6" set "HOST=pearl-sg2.luckypool.io"
+
+set "PORT=3360"
+set "POOL=%HOST%:%PORT%"
 
 echo.
 echo Select tuning profile:
 echo   1. Stable      auto intensity, safest
 echo   2. Performance intensity 30
 echo   3. Aggressive  intensity 31
-echo   4. Custom      type your own WildRig options
-set "PROFILE=2"
-set /p "PROFILE=Profile [2]: "
+echo   4. Big test    intensity 32
+echo   5. Max test    intensity 33
+echo   6. Extreme     intensity 34
+echo   7. Custom      type your own WildRig options
+set "PROFILE=5"
+set /p "PROFILE=Profile [5]: "
 
-set "TUNE_ARGS=--gpu-intensity 30"
+set "TUNE_ARGS=--gpu-intensity 33"
 if "%PROFILE%"=="1" set "TUNE_ARGS="
+if "%PROFILE%"=="2" set "TUNE_ARGS=--gpu-intensity 30"
 if "%PROFILE%"=="3" set "TUNE_ARGS=--gpu-intensity 31"
-if "%PROFILE%"=="4" set /p "TUNE_ARGS=Custom options: "
+if "%PROFILE%"=="4" set "TUNE_ARGS=--gpu-intensity 32"
+if "%PROFILE%"=="6" set "TUNE_ARGS=--gpu-intensity 34"
+if "%PROFILE%"=="7" set /p "TUNE_ARGS=Custom options: "
 
 echo.
 echo Starting PearlHash mining:
@@ -168,25 +190,76 @@ echo.
 echo Miner stopped. Restarting in 5 seconds...
 timeout /t 5 >nul
 goto loop</textarea>
+    <textarea id="luck-cmd" hidden>@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+
+cd /d "%~dp0"
+
+set "POOL=stratum+tcp://pearl-sg1.luckypool.io:3360"
+set "WALLET=prl1puv4zj79afgkqsz09d2nxdmvpkunhc7390w6uu57gscy6rr82y6cqp929te"
+set "WORKER=rig1"
+set "RESTART_DELAY=5"
+
+REM Load a previously-saved wallet, if present.
+if exist "wallet.txt" set /p WALLET=<"wallet.txt"
+
+REM Prompt if wallet is empty or still the placeholder.
+if "%WALLET%"=="" goto :ask
+if "%WALLET%"=="YOUR_WALLET_HERE" goto :ask
+goto :run
+
+:ask
+echo.
+echo  Your PRL wallet is not configured yet.
+echo  Paste your wallet address (or 'solo:prl1...' for solo mining):
+set /p "WALLET=  > "
+if "%WALLET%"=="" (
+    echo  No wallet entered. Exiting.
+    pause
+    exit /b 1
+)
+> "wallet.txt" echo %WALLET%
+echo  Saved to wallet.txt -- delete or edit that file to change wallets.
+echo.
+
+:run
+:restart
+echo [%DATE% %TIME%] starting lpminer (wallet %WALLET%, worker %WORKER%)...
+lpminer.exe --algo pearl --pool %POOL% --wallet %WALLET% --worker %WORKER%
+set "RC=%ERRORLEVEL%"
+echo [%DATE% %TIME%] lpminer exited with code !RC!. Restarting in %RESTART_DELAY% seconds...
+timeout /t %RESTART_DELAY% /nobreak >nul
+goto restart</textarea>
   </main>
 
   <script>
-    const button = document.getElementById("copy");
-    const textarea = document.getElementById("cmd");
+    const preview = document.getElementById("cmd");
+    const scripts = {
+      cmd: preview.value,
+      "luck-cmd": document.getElementById("luck-cmd").value,
+    };
 
-    button.addEventListener("click", async () => {
-      textarea.select();
-      textarea.setSelectionRange(0, textarea.value.length);
+    const copyText = async (button) => {
+      const text = scripts[button.dataset.target];
+      preview.value = text;
+      preview.select();
+      preview.setSelectionRange(0, preview.value.length);
       try {
-        await navigator.clipboard.writeText(textarea.value);
+        await navigator.clipboard.writeText(text);
         button.textContent = "已复制";
       } catch {
         document.execCommand("copy");
         button.textContent = "已复制";
       }
       setTimeout(() => {
-        button.textContent = "复制 CMD 内容";
+        button.textContent = button.dataset.label;
       }, 1600);
+    };
+
+    document.querySelectorAll(".copy").forEach((button) => {
+      button.addEventListener("click", () => {
+        copyText(button);
+      });
     });
   </script>
 </body>
